@@ -64,7 +64,7 @@ class TinyChessGPT(nn.Module):
         return logits, None
 
 # ========== CARICA MODELLO ==========
-VOCAB_SIZE = 2935
+VOCAB_SIZE = 2935   # 🔧 Controlla che sia il valore corretto (vedi nota)
 SEQ_LEN = 256
 DEVICE = torch.device('cpu')
 
@@ -95,18 +95,64 @@ def scegli_mossa_legale(board, temperature=0.8):
             continue
     return np.random.choice(list(board.legal_moves))
 
+def get_game_over_reason(board):
+    if board.is_checkmate(): return 'CHECKMATE'
+    if board.is_stalemate(): return 'STALEMATE'
+    if board.is_insufficient_material(): return 'INSUFFICIENT_MATERIAL'
+    if board.is_seventyfive_moves(): return 'SEVENTYFIVE_MOVES'
+    if board.is_fivefold_repetition(): return 'FIVEFOLD_REPETITION'
+    return 'UNKNOWN'
+
 # ========== SERVER FLASK ==========
 app = Flask(__name__)
 CORS(app)
 
+@app.route('/legal_moves', methods=['POST'])
+def legal_moves():
+    data = request.get_json()
+    board = chess.Board(data['fen'])
+    moves = [move.uci() for move in board.legal_moves]
+    return jsonify({'moves': moves})
+
+@app.route('/validate', methods=['POST'])
+def validate_move():
+    data = request.get_json()
+    board = chess.Board(data['fen'])
+    uci = data['uci']
+    try:
+        move = chess.Move.from_uci(uci)
+        if move in board.legal_moves:
+            board.push(move)
+            return jsonify({
+                'valid': True,
+                'fen': board.fen(),
+                'san': board.san(move),
+                'in_check': board.is_check(),
+                'game_over': board.is_game_over(),
+                'result': board.result() if board.is_game_over() else None,
+                'reason': get_game_over_reason(board) if board.is_game_over() else None
+            })
+        else:
+            return jsonify({'valid': False})
+    except:
+        return jsonify({'valid': False})
+
 @app.route('/move', methods=['POST'])
 def get_move():
     data = request.get_json()
-    fen = data['fen']
+    board = chess.Board(data['fen'])
     temperature = data.get('temperature', 0.8)
-    board = chess.Board(fen)
     mossa = scegli_mossa_legale(board, temperature)
-    return jsonify({'move': board.san(mossa)})
+    board.push(mossa)
+    return jsonify({
+        'status': 'game_over' if board.is_game_over() else 'ok',
+        'fen': board.fen(),
+        'uci': mossa.uci(),
+        'san': board.san(mossa),
+        'in_check': board.is_check(),
+        'result': board.result() if board.is_game_over() else None,
+        'reason': get_game_over_reason(board) if board.is_game_over() else None
+    })
 
 @app.route('/')
 def index():
