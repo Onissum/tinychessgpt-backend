@@ -64,7 +64,7 @@ class TinyChessGPT(nn.Module):
         return logits, None
 
 # ========== CARICA MODELLO ==========
-VOCAB_SIZE = 8192
+VOCAB_SIZE = 2935
 SEQ_LEN = 256
 DEVICE = torch.device('cpu')
 
