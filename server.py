@@ -122,11 +122,12 @@ def validate_move():
     try:
         move = chess.Move.from_uci(uci)
         if move in board.legal_moves:
+            san = board.san(move)   # va calcolato PRIMA di push()
             board.push(move)
             return jsonify({
                 'valid': True,
                 'fen': board.fen(),
-                'san': board.san(move),
+                'san': san,
                 'in_check': board.is_check(),
                 'game_over': board.is_game_over(),
                 'result': board.result() if board.is_game_over() else None,
@@ -143,12 +144,13 @@ def get_move():
     board = chess.Board(data['fen'])
     temperature = data.get('temperature', 0.8)
     mossa = scegli_mossa_legale(board, temperature)
+    san = board.san(mossa)   # va calcolato PRIMA di push()
     board.push(mossa)
     return jsonify({
         'status': 'game_over' if board.is_game_over() else 'ok',
         'fen': board.fen(),
         'uci': mossa.uci(),
-        'san': board.san(mossa),
+        'san': san,
         'in_check': board.is_check(),
         'result': board.result() if board.is_game_over() else None,
         'reason': get_game_over_reason(board) if board.is_game_over() else None
